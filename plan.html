@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>STEP-IN 🤝 Expleo</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 2em;
+      background: #f8f9fa;
+      color: #222;
+      transition: background 0.3s, color 0.3s;
+    }
+    h1 { color: #2c3e50; }
+    .container { max-width: 1200px; margin: auto; }
+    table { border-collapse: collapse; width: 100%; margin-top: 2em; box-shadow: 0 2px 8px #eee; background: #fff; }
+    th, td { border: 1px solid #e1e1e1; padding: 10px; text-align: left; }
+    th { background: #eaf0f6; color: #34495e; }
+    tr:nth-child(even) { background: #f4f8fb; }
+    .layers { font-size: 0.95em; color: #555; }
+    #chart-container { margin-top: 2em; background: #fff; padding: 1em; border-radius: 8px; box-shadow: 0 2px 8px #eee; }
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 30px;
+      z-index: 100;
+      background: #34495e;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark {
+      background: #181a20;
+      color: #e1e1e1;
+    }
+    body.dark h1 { color: #e1e1e1; }
+    body.dark table { background: #23262f; box-shadow: 0 2px 8px #222; }
+    body.dark th { background: #23262f; color: #f9ca24; }
+    body.dark td { border-color: #444; }
+    body.dark tr:nth-child(even) { background: #23262f; }
+    body.dark .layers { color: #bbb; }
+  body.dark #chart-container, body.dark #impact-chart-container { background: #23262f !important; box-shadow: 0 2px 8px #222; }
+    body.dark .theme-toggle { background: #f9ca24; color: #23262f; }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" id="theme-toggle">🌙 Dark Mode</button>
+  <div class="container">
+    <div style="display: flex; align-items: center; gap: 1em;">
+      <img src="https://stepinforum.org/wp-content/uploads/2023/11/stepin-logo-wht.png" alt="STEP-IN Logo" style="height: 60px; background: #2c3e50; border-radius: 8px; padding: 6px;">
+      <h1 style="margin: 0;">Plan Results</h1>
+    </div>
+    <div id="chart-container">
+      <canvas id="moduleChart" height="100"></canvas>
+    </div>
+    <div id="impact-chart-container" style="margin-top:2em;background:#fff;padding:1em;border-radius:8px;box-shadow:0 2px 8px #eee;">
+      <h2 style="color:#2c3e50;">Highly Impacted Areas</h2>
+  <div style="display:flex;flex-direction:row;align-items:flex-start;justify-content:center;gap:32px;min-width:650px;">
+  <canvas id="impactChart" width="450" height="260" style="max-width:450px;max-height:260px;display:block;transition:transform 0.3s;"></canvas>
+        <div id="impact-summary" style="margin-top:0;max-width:250px;text-align:left;font-size:1em;"></div>
+      </div>
+      <script>
+        const impactChartCanvas = document.getElementById('impactChart');
+        impactChartCanvas.addEventListener('mouseenter', function() {
+          impactChartCanvas.style.transform = 'scale(1.15)';
+        });
+        impactChartCanvas.addEventListener('mouseleave', function() {
+          impactChartCanvas.style.transform = 'scale(1)';
+        });
+      </script>
+    </div>
+  <button id="jira-push-all" style="background:#0052cc;color:#fff;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;margin-bottom:1em;">Push All to Jira</button>
+  <button id="export-excel" style="background:#27ae60;color:#fff;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;margin-bottom:1em;margin-left:1em;">Export to Excel</button>
+  <button id="export-json" style="background:#f39c12;color:#fff;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;margin-bottom:1em;margin-left:1em;">Export JSON</button>
+    <table>
+      <thead>
+        <tr>
+          <th>Test ID</th>
+          <th id="module-header" style="cursor:pointer;text-decoration:underline;">Module &#x25B2;&#x25BC;</th>
+          <th>Environment</th>
+          <th>Failure Type</th>
+          <th>Impacted Layers</th>
+          <th>Base Minutes</th>
+          <th>Final Minutes</th>
+          <th id="priority-score-header" style="cursor:pointer;text-decoration:underline;">Priority Score &#x25B2;&#x25BC;</th>
+        </tr>
+      </thead>
+      <tbody id="plan-table-body"></tbody>
+    </table>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script>
+    // Theme toggle logic
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    themeToggleBtn.addEventListener('click', function() {
+      if (document.body.classList.contains('dark')) {
+        document.body.classList.remove('dark');
+        themeToggleBtn.textContent = '🌙 ';
+      } else {
+        document.body.classList.add('dark');
+        themeToggleBtn.textContent = ' ☀️ ';
+      }
+    });
+ 
+    fetch('plan.json')
+      .then(response => response.json())
+      .then(data => {
+        // Highly impacted layers statistics
+        const layerImpact = {};
+        data.forEach(row => {
+          row.impacted_layers.forEach(layer => {
+            layerImpact[layer] = (layerImpact[layer] || 0) + row.Final_minutes;
+          });
+        });
+        // Sort layers by impact
+        const sortedLayers = Object.entries(layerImpact)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10); // Top 10 impacted layers
+        const impactLabels = sortedLayers.map(([layer]) => layer);
+        const impactValues = sortedLayers.map(([_, value]) => Number(value.toFixed(3)));
+        // Chart.js bar chart for impacted layers
+        const impactColors = [
+          'rgba(231, 76, 60, 0.7)',
+          'rgba(52, 152, 219, 0.7)',
+          'rgba(46, 204, 113, 0.7)',
+          'rgba(241, 196, 15, 0.7)',
+          'rgba(155, 89, 182, 0.7)',
+          'rgba(26, 188, 156, 0.7)',
+          'rgba(230, 126, 34, 0.7)',
+          'rgba(52, 73, 94, 0.7)',
+          'rgba(127, 140, 141, 0.7)',
+          'rgba(192, 57, 43, 0.7)'
+        ];
+        const impactBorderColors = impactColors.map(c => c.replace('0.7', '1'));
+        const impactCtx = document.getElementById('impactChart').getContext('2d');
+        new Chart(impactCtx, {
+          type: 'doughnut',
+          data: {
+            labels: impactLabels,
+            datasets: [{
+              label: 'Total Final Minutes by Impacted Layer',
+              data: impactValues,
+              backgroundColor: impactColors.slice(0, impactLabels.length),
+              borderColor: impactBorderColors.slice(0, impactLabels.length),
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: true, position: 'right' },
+              title: {
+                display: true,
+                text: 'Top 10 Highly Impacted Areas',
+                font: { size: 18 }
+              },
+              datalabels: {
+                color: '#222',
+                font: { weight: 'bold', size: 10 },
+                formatter: function(value, context) {
+                  return value;
+                }
+              }
+            }
+          },
+          plugins: [ChartDataLabels]
+        });
+        // Impact summary
+        const impactSummary = document.getElementById('impact-summary');
+        impactSummary.innerHTML = `<b>Top Impacted Areas:</b> <br>` + impactLabels.map((layer, i) => `${i+1}. ${layer} (<b>${impactValues[i]}</b> min)`).join('<br>');
+        // Export to Excel button logic
+        document.getElementById('export-excel').addEventListener('click', () => {
+          // Prepare worksheet data
+          const wsData = [
+            ['Test ID', 'Module', 'Environment', 'Failure Type', 'Impacted Layers', 'Base Minutes', 'Final Minutes', 'Priority Score']
+          ];
+          currentTableData.forEach(row => {
+            wsData.push([
+              row.test_id,
+              row.module,
+              row.environment,
+              row.failure_type,
+              row.impacted_layers.join(', '),
+              row.Base_minutes,
+              row.Final_minutes.toFixed(3),
+              row.priority_score
+            ]);
+          });
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet(wsData);
+          XLSX.utils.book_append_sheet(wb, ws, 'Plan');
+          XLSX.writeFile(wb, 'plan_export.xlsx');
+        });
+ 
+        // Export to JSON button logic
+        document.getElementById('export-json').addEventListener('click', () => {
+          const jsonStr = JSON.stringify(currentTableData, null, 2);
+          const blob = new Blob([jsonStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'plan_export.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+        const tbody = document.getElementById('plan-table-body');
+        // Table rows
+        let currentSortAsc = true;
+        let currentModuleSortAsc = true;
+        // Pagination variables
+        let currentPage = 1;
+        const pageSize = 25;
+        let currentTableData = [...data];
+ 
+        function renderTable(tableData, page = 1) {
+          tbody.innerHTML = '';
+          const start = (page - 1) * pageSize;
+          const end = start + pageSize;
+          tableData.slice(start, end).forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${row.test_id}</td>
+              <td>${row.module}</td>
+              <td>${row.environment}</td>
+              <td>${row.failure_type}</td>
+              <td class="layers">${row.impacted_layers.join(', ')}</td>
+              <td>${row.Base_minutes}</td>
+              <td>${row.Final_minutes.toFixed(3)}</td>
+              <td>${row.priority_score}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+          renderPagination(tableData.length, page);
+        }
+ 
+        function renderPagination(total, page) {
+          let pagination = document.getElementById('pagination');
+          if (!pagination) {
+            pagination = document.createElement('div');
+            pagination.id = 'pagination';
+            pagination.style = 'margin-top:1em;text-align:center;';
+            tbody.parentElement.appendChild(pagination);
+          }
+          const pageCount = Math.ceil(total / pageSize);
+          let html = '';
+          if (pageCount > 1) {
+            html += `<button ${page === 1 ? 'disabled' : ''} id="prev-page">Prev</button> `;
+            for (let i = 1; i <= pageCount; i++) {
+              html += `<button ${i === page ? 'style=\"font-weight:bold;background:#0052cc;color:#fff;\"' : ''} class="page-btn" data-page="${i}">${i}</button> `;
+            }
+            html += `<button ${page === pageCount ? 'disabled' : ''} id="next-page">Next</button>`;
+          }
+          pagination.innerHTML = html;
+          if (pageCount > 1) {
+            document.getElementById('prev-page')?.addEventListener('click', () => {
+              if (currentPage > 1) {
+                currentPage--;
+                renderTable(currentTableData, currentPage);
+              }
+            });
+            document.getElementById('next-page')?.addEventListener('click', () => {
+              if (currentPage < pageCount) {
+                currentPage++;
+                renderTable(currentTableData, currentPage);
+              }
+            });
+            document.querySelectorAll('.page-btn').forEach(btn => {
+              btn.addEventListener('click', e => {
+                currentPage = Number(btn.getAttribute('data-page'));
+                renderTable(currentTableData, currentPage);
+              });
+            });
+          }
+        }
+ 
+        renderTable(currentTableData, currentPage);
+ 
+        document.getElementById('priority-score-header').addEventListener('click', () => {
+          currentSortAsc = !currentSortAsc;
+          currentTableData = [...currentTableData].sort((a, b) => currentSortAsc ? a.priority_score - b.priority_score : b.priority_score - a.priority_score);
+          currentPage = 1;
+          renderTable(currentTableData, currentPage);
+        });
+ 
+        document.getElementById('module-header').addEventListener('click', () => {
+          currentModuleSortAsc = !currentModuleSortAsc;
+          currentTableData = [...currentTableData].sort((a, b) => currentModuleSortAsc ? a.module.localeCompare(b.module) : b.module.localeCompare(a.module));
+          currentPage = 1;
+          renderTable(currentTableData, currentPage);
+        });
+ 
+        // Add event listener for single push all button
+        document.getElementById('jira-push-all').addEventListener('click', () => {
+          fetch('https://expleoteam2-stepin.atlassian.net/jira/for-you', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+              // Add Authorization header if needed
+            },
+            body: JSON.stringify(data)
+          })
+          .then(res => {
+            if (res.ok) {
+              alert('All data pushed to Jira successfully!');
+            } else {
+              alert('Failed to push all data to Jira.');
+            }
+          })
+          .catch(() => alert('Error connecting to Jira.'));
+        });
+ 
+        // Environment filter dropdown
+        const envs = Array.from(new Set(data.map(row => row.environment)));
+        const chartContainer = document.getElementById('chart-container');
+        const filterDiv = document.createElement('div');
+        filterDiv.style.marginBottom = '1em';
+        filterDiv.innerHTML = `<label for="envFilter"><b>Filter by Environment:</b></label> <select id="envFilter"></select>`;
+        chartContainer.insertBefore(filterDiv, chartContainer.firstChild);
+        const envFilter = document.getElementById('envFilter');
+        envs.forEach(env => {
+          const opt = document.createElement('option');
+          opt.value = env;
+          opt.textContent = env;
+          envFilter.appendChild(opt);
+        });
+        // Add 'All' option
+        const allOpt = document.createElement('option');
+        allOpt.value = 'All';
+        allOpt.textContent = 'All';
+        envFilter.insertBefore(allOpt, envFilter.firstChild);
+        envFilter.value = 'All';
+ 
+        // Chart rendering function
+        function renderChart(filteredData) {
+          const moduleMap = {};
+          filteredData.forEach(row => {
+            const mod = row.module;
+            moduleMap[mod] = (moduleMap[mod] || 0) + row.Final_minutes;
+          });
+          const labels = Object.keys(moduleMap);
+          const values = Object.values(moduleMap).map(v => Number(v.toFixed(3)));
+          // Color palette for chart bars
+          const colors = [
+            'rgba(52, 152, 219, 0.7)',
+            'rgba(231, 76, 60, 0.7)',
+            'rgba(46, 204, 113, 0.7)',
+            'rgba(241, 196, 15, 0.7)',
+            'rgba(155, 89, 182, 0.7)',
+            'rgba(26, 188, 156, 0.7)',
+            'rgba(230, 126, 34, 0.7)',
+            'rgba(52, 73, 94, 0.7)',
+            'rgba(127, 140, 141, 0.7)',
+            'rgba(192, 57, 43, 0.7)'
+          ];
+          const borderColors = colors.map(c => c.replace('0.7', '1'));
+          const ctx = document.getElementById('moduleChart').getContext('2d');
+          if (window.moduleChartInstance) window.moduleChartInstance.destroy();
+          window.moduleChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: 'Total Final Minutes by Module',
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: borderColors.slice(0, labels.length),
+                borderWidth: 2
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false },
+                title: {
+                  display: true,
+                  text: 'Total Final Minutes by Module',
+                  font: { size: 18 }
+                }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }
+          });
+        }
+ 
+        // Initial chart render (all data)
+        renderChart(data);
+ 
+        // Filter chart on dropdown change
+        envFilter.addEventListener('change', () => {
+          const selected = envFilter.value;
+          if (selected === 'All') {
+            renderChart(data);
+          } else {
+            renderChart(data.filter(row => row.environment === selected));
+          }
+        });
+      });
+  </script>
+</body>
+</html>
+ 
+ 
