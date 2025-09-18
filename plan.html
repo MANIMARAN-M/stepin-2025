@@ -54,6 +54,16 @@
       <img src="https://stepinforum.org/wp-content/uploads/2023/11/stepin-logo-wht.png" alt="STEP-IN Logo" style="height: 60px; background: #2c3e50; border-radius: 8px; padding: 6px;">
       <h1 style="margin: 0;">Plan Results</h1>
     </div>
+
+      <div style="margin-top: 2em;">
+      <h2>Upload failure File</h2>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="file" id="fileInput" style="margin-bottom: 1em;" required />
+        <button type="submit" style="background: #3498db; color: #fff; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer;">Upload</button>
+      </form>
+      <p id="uploadStatus" style="margin-top: 1em; color: #2ecc71; display: none;">File uploaded successfully!</p>
+      <p id="uploadError" style="margin-top: 1em; color: #e74c3c; display: none;">Failed to upload file.</p>
+    </div>
     <div id="chart-container">
       <canvas id="moduleChart" height="100"></canvas>
     </div>
@@ -92,23 +102,33 @@
       <tbody id="plan-table-body"></tbody>
     </table>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <script>
-    // Theme toggle logic
-    const themeToggleBtn = document.getElementById('theme-toggle');
-    themeToggleBtn.addEventListener('click', function() {
-      if (document.body.classList.contains('dark')) {
-        document.body.classList.remove('dark');
-        themeToggleBtn.textContent = '🌙 ';
-      } else {
-        document.body.classList.add('dark');
-        themeToggleBtn.textContent = ' ☀️ ';
-      }
-    });
- 
-    fetch('plan.json')
+
+
+    <script>
+      const uploadForm = document.getElementById('uploadForm');
+      const uploadStatus = document.getElementById('uploadStatus');
+      const uploadError = document.getElementById('uploadError');
+
+      uploadForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const fileInput = document.getElementById('fileInput');
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        try {
+          const response = await fetch('http://localhost:3000/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (response.ok) {
+            uploadStatus.style.display = 'block';
+            uploadError.style.display = 'none';
+
+const uploadedFilePath =  response.filePath.split('uploads/')[1];
+
+console.log('Uploaded file path:', uploadedFilePath);
+   fetch('plan.json')
       .then(response => response.json())
       .then(data => {
         // Highly impacted layers statistics
@@ -405,8 +425,40 @@
           }
         });
       });
+ 
+
+
+
+
+
+
+          } else {
+            uploadStatus.style.display = 'none';
+            uploadError.style.display = 'block';
+          }
+        } catch (error) {
+          uploadStatus.style.display = 'none';
+          uploadError.style.display = 'block';
+        }
+      });
+    </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script>
+    // Theme toggle logic
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    themeToggleBtn.addEventListener('click', function() {
+      if (document.body.classList.contains('dark')) {
+        document.body.classList.remove('dark');
+        themeToggleBtn.textContent = '🌙 ';
+      } else {
+        document.body.classList.add('dark');
+        themeToggleBtn.textContent = ' ☀️ ';
+      }
+    });
+ 
   </script>
 </body>
 </html>
- 
- 
+
