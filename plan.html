@@ -106,7 +106,7 @@
 
 
     <script>
-      const uploadForm = document.getElementById('uploadForm');
+    const uploadForm = document.getElementById('uploadForm');
       const uploadStatus = document.getElementById('uploadStatus');
       const uploadError = document.getElementById('uploadError');
 
@@ -129,7 +129,40 @@
 const uploadedFilePath =  response.filePath.split('uploads/')[1];
 
 console.log('Uploaded file path:', uploadedFilePath);
-   fetch('plan.json')
+
+          } else {
+            uploadStatus.style.display = 'none';
+            uploadError.style.display = 'block';
+          }
+        } catch (error) {
+          uploadStatus.style.display = 'none';
+          uploadError.style.display = 'block';
+        }
+      });
+  
+
+
+
+
+  
+    </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script>
+    // Theme toggle logic
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    themeToggleBtn.addEventListener('click', function() {
+      if (document.body.classList.contains('dark')) {
+        document.body.classList.remove('dark');
+        themeToggleBtn.textContent = '🌙 ';
+      } else {
+        document.body.classList.add('dark');
+        themeToggleBtn.textContent = ' ☀️ ';
+      }
+    });
+
+     fetch('plan.json')
       .then(response => response.json())
       .then(data => {
         // Highly impacted layers statistics
@@ -427,37 +460,6 @@ console.log('Uploaded file path:', uploadedFilePath);
         });
       });
  
-
-
-
-
-
-
-          } else {
-            uploadStatus.style.display = 'none';
-            uploadError.style.display = 'block';
-          }
-        } catch (error) {
-          uploadStatus.style.display = 'none';
-          uploadError.style.display = 'block';
-        }
-      });
-    </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <script>
-    // Theme toggle logic
-    const themeToggleBtn = document.getElementById('theme-toggle');
-    themeToggleBtn.addEventListener('click', function() {
-      if (document.body.classList.contains('dark')) {
-        document.body.classList.remove('dark');
-        themeToggleBtn.textContent = '🌙 ';
-      } else {
-        document.body.classList.add('dark');
-        themeToggleBtn.textContent = ' ☀️ ';
-      }
-    });
  
   </script>
 </body>
